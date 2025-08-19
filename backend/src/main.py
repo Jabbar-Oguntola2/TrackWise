@@ -30,20 +30,36 @@ class User(db.Model, UserMixin):
     password: Mapped[str] = mapped_column(String(250), nullable=False)
     creation_date: Mapped[str] = mapped_column(String(250), nullable=False)
 
-    #User relationship
+    #expenses relationship
     expenses = relationship("Expenses", back_populates="user")
+
+    #incomes relationship
+    user_income = relationship("Incomes", back_populates="user")
 
 
 class Expenses(db.Model):
     __tablename__ = 'expenses'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    cost: Mapped[float] = mapped_column(Float, nullable=False)
+    cost: Mapped[int] = mapped_column(Float, nullable=False)
     date: Mapped[str] = mapped_column(String(250), nullable=False)
     category: Mapped[str] = mapped_column(String(250), nullable=False)
 
     #User relationship
     users_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'))
     user = relationship("User", back_populates="expenses")
+
+
+
+class Incomes(db.Model):
+    __tablename__ = 'incomes'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cost: Mapped[int] = mapped_column(Float, nullable=False)
+    date: Mapped[str] = mapped_column(String(250), nullable=False)
+    category: Mapped[str] = mapped_column(String(250), nullable=False)
+
+    # User relationship
+    users_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'))
+    user = relationship("User", back_populates="user_income")
 
 
 with app.app_context():
@@ -145,6 +161,34 @@ def add_expense():
             "expense_cost": new_expense.cost,
             "expense_category": new_expense.category,
             "expense_date": new_expense.date,
+        }
+    })
+
+
+
+@app.route("/add-income", methods=["POST"])
+def add_income():
+    income_cost = request.args.get("cost")
+    income_category = request.args.get("category")
+    income_date = request.args.get("date")
+
+    new_income = Incomes(
+        cost=income_cost,
+        date=income_date,
+        category = income_category,
+        users_id = current_user.id
+    )
+
+    db.session.add(new_income)
+    db.session.commit()
+
+    return jsonify(success={
+        "message": "Income added successfully",
+        "info":{
+            "name": new_income.user.name,
+            "income_cost": new_income.cost,
+            "income_category": new_income.category,
+            "income_date": new_income.date,
         }
     })
 
