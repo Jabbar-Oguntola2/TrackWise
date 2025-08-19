@@ -199,6 +199,18 @@ def add_expense():
         }
     }), 200
 
+@app.route("/edit-expense/<int:expense_id>", methods=["PATCH"])
+@login_required
+def edit_expense(expense_id):
+    new_cost = float(request.args.get("cost"))
+    chosen_expense = db.get_or_404(Expenses, expense_id)
+    chosen_expense.cost = new_cost
+    db.session.commit()
+    return jsonify(success={
+        "message": "Expense edited successfully",
+    }), 200
+
+
 @app.route("/all-expenses", methods=["GET"])
 def all_expenses():
     expenses = db.session.execute(db.select(Expenses).where(Expenses.users_id == current_user.get_id())).scalars().all()
@@ -213,16 +225,18 @@ def all_expenses():
         })
 
 
-@app.route("/edit-expense/<int:expense_id>", methods=["PATCH"])
+@app.route("/expense/<int:expense_id>", methods=["GET"])
 @login_required
-def edit_expense(expense_id):
-    new_cost = float(request.args.get("cost"))
-    chosen_expense = db.get_or_404(Expenses, expense_id)
-    chosen_expense.cost = new_cost
-    db.session.commit()
-    return jsonify(success={
-        "message": "Expense edited successfully",
-    }), 200
+def show_expense(expense_id):
+    specific_expense = db.session.execute(db.select(Expenses).where(Expenses.id == expense_id)).scalar()
+    if specific_expense:
+        return jsonify(success={
+            "budgets": [specific_expense.to_dict()],
+        })
+    else:
+        return jsonify(error={
+            "message": "No expense found"
+        })
 
 
 
@@ -280,6 +294,18 @@ def all_incomes():
             "message": "No incomes found"
         })
 
+@app.route("/income/<int:income_id>", methods=["GET"])
+@login_required
+def show_income(income_id):
+    specific_income = db.session.execute(db.select(Incomes).where(Incomes.id == income_id)).scalar()
+    if specific_income:
+        return jsonify(success={
+            "info": [specific_income.to_dict()],
+        })
+    else:
+        return jsonify(error={
+            "message": "Income does not exist"
+        })
 
 
 
@@ -340,6 +366,26 @@ def all_budgets():
         return jsonify(error={
             "message": "No budgets found"
         })
+
+@app.route('/budget/<int:budget_id>', methods=["GET"])
+@login_required
+def show_budget(budget_id):
+    specific_budget = db.session.execute(db.select(Budgets).where(Budgets.id == budget_id)).scalar()
+    if specific_budget:
+        return jsonify(success={
+            "info": [specific_budget.to_dict()],
+        })
+    else:
+        return jsonify(error={
+            "message": "Budget does not exist"
+        })
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)
