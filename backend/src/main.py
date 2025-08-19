@@ -36,6 +36,9 @@ class User(db.Model, UserMixin):
     #incomes relationship
     user_income = relationship("Incomes", back_populates="user")
 
+    #Budgets relationship
+    budgets = relationship("Budgets", back_populates="user")
+
 
 class Expenses(db.Model):
     __tablename__ = 'expenses'
@@ -61,9 +64,21 @@ class Incomes(db.Model):
     users_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'))
     user = relationship("User", back_populates="user_income")
 
+class Budgets(db.Model):
+    __tablename__ = 'budgets'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    limit: Mapped[int] = mapped_column(Float, nullable=False)
+    category: Mapped[str] = mapped_column(String(250), nullable=False)
+    time_frame: Mapped[str] = mapped_column(String(250), nullable=False) #day, week, month
+
+    #relationship with User
+    users_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'))
+    user = relationship("User", back_populates="budgets")
 
 with app.app_context():
     db.create_all()
+
+
 
 
 login_manager = LoginManager()
@@ -78,11 +93,21 @@ def home():
     return "<h1>Welcome to the Trackwise API!</h1>"
 
 
+def format_date(date):
+    sliced_date = date.split("/")
+    tmp = sliced_date[0]
+    sliced_date[0] = sliced_date[-1]
+    sliced_date[-1] = tmp
+    new_date = "/".join(sliced_date)
+    return new_date
+
+
 
 @app.route("/sign-in", methods=["GET","POST"])
 def sign_in():
     date = str(datetime.today().date())
     corrected_date_format = date.replace("-", "/")
+    new_date = format_date(corrected_date_format)
     name = request.args.get("name")
     hashed_and_salted_password = generate_password_hash(request.args.get("password"), method="pbkdf2:sha256", salt_length=8)
     user_email = request.args.get("email")
@@ -95,7 +120,7 @@ def sign_in():
         name=name,
         password=hashed_and_salted_password,
         email=user_email,
-        creation_date=corrected_date_format,
+        creation_date=new_date,
 
         )
 
@@ -103,7 +128,7 @@ def sign_in():
     db.session.commit()
     login_user(new_user)
     return jsonify(success={
-        "message": f"Welcome to TrackWise {current_user.name}!Your account was created on {current_user.creation_date}"}), 200
+        "message": f"Welcome to TrackWise {current_user.name}! Your account was created on {current_user.creation_date}"}), 200
 
 
 
@@ -149,7 +174,7 @@ def add_expense():
         cost=expense_cost,
         date=date_of_expense,
         category = expense_category,
-        users_id = current_user.id
+        user = current_user
     )
 
     db.session.add(new_expense)
@@ -162,7 +187,7 @@ def add_expense():
             "expense_category": new_expense.category,
             "expense_date": new_expense.date,
         }
-    })
+    }), 200
 
 
 
@@ -176,7 +201,7 @@ def add_income():
         cost=income_cost,
         date=income_date,
         category = income_category,
-        users_id = current_user.id
+        user = current_user
     )
 
     db.session.add(new_income)
@@ -190,8 +215,35 @@ def add_income():
             "income_category": new_income.category,
             "income_date": new_income.date,
         }
-    })
+    }), 200
 
+
+@app.route('/add-budget', methods=["POST"])
+def add_budget():
+    budget_limit = request.args.get("limit")
+    budget_category = request.args.get("category")
+    budget_time_frame = request.args.get("time_frame")
+
+
+    new_budget = Budgets(
+        limit=budget_limit,
+        category=budget_category,
+        time_frame=budget_time_frame,
+        user = current_user
+    )
+
+    db.session.add(new_budget)
+    db.session.commit()
+
+    return jsonify(success={
+        "message": "Budget added successfully",
+        "info":{
+            "name": new_budget.user.name,
+            "budget_limit": new_budget.limit,
+            "budget_category": new_budget.category,
+            "budget_time_frame": new_budget.time_frame,
+        }
+    })
 
 
 if __name__ == "__main__":
