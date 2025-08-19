@@ -51,6 +51,9 @@ class Expenses(db.Model):
     users_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'))
     user = relationship("User", back_populates="expenses")
 
+    def to_dict(self):
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+
 
 
 class Incomes(db.Model):
@@ -64,6 +67,9 @@ class Incomes(db.Model):
     users_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'))
     user = relationship("User", back_populates="user_income")
 
+    def to_dict(self):
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+
 class Budgets(db.Model):
     __tablename__ = 'budgets'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -74,6 +80,9 @@ class Budgets(db.Model):
     #relationship with User
     users_id: Mapped[int] = mapped_column(Integer, ForeignKey('users.id'))
     user = relationship("User", back_populates="budgets")
+
+    def to_dict(self):
+        return {column.name: getattr(self, column.name) for column in self.__table__.columns}
 
 with app.app_context():
     db.create_all()
@@ -165,6 +174,7 @@ def logout():
 
 
 @app.route("/add-expense", methods=["POST"])
+@login_required
 def add_expense():
     expense_cost = request.args.get("cost")
     date_of_expense = request.args.get("date")
@@ -189,9 +199,36 @@ def add_expense():
         }
     }), 200
 
+@app.route("/all-expenses", methods=["GET"])
+def all_expenses():
+    expenses = db.session.execute(db.select(Expenses).where(Expenses.users_id == current_user.get_id())).scalars().all()
+    all_user_expenses = [expense.to_dict() for expense in expenses]
+    if all_user_expenses:
+        return jsonify(success={
+            "budgets": all_user_expenses,
+        })
+    else:
+        return jsonify(error={
+            "message": "No expenses found"
+        })
+
+
+@app.route("/edit-expense/<int:expense_id>", methods=["PATCH"])
+@login_required
+def edit_expense(expense_id):
+    new_cost = float(request.args.get("cost"))
+    chosen_expense = db.get_or_404(Expenses, expense_id)
+    chosen_expense.cost = new_cost
+    db.session.commit()
+    return jsonify(success={
+        "message": "Expense edited successfully",
+    }), 200
+
+
 
 
 @app.route("/add-income", methods=["POST"])
+@login_required
 def add_income():
     income_cost = request.args.get("cost")
     income_category = request.args.get("category")
@@ -218,7 +255,40 @@ def add_income():
     }), 200
 
 
+
+@app.route("/edit-income/<int:income_id>", methods=["PATCH"])
+@login_required
+def edit_income(income_id):
+    new_cost = float(request.args.get("cost"))
+    chosen_income = db.get_or_404(Incomes, income_id)
+    chosen_income.cost = new_cost
+    db.session.commit()
+    return jsonify(success={
+        "message": "Income edited successfully",
+    })
+
+@app.route("/all-incomes", methods=["GET"])
+def all_incomes():
+    incomes = db.session.execute(db.select(Incomes).where(Incomes.users_id == current_user.get_id())).scalars().all()
+    all_user_incomes = [income.to_dict() for income in incomes]
+    if all_user_incomes:
+        return jsonify(success={
+            "budgets": all_user_incomes
+        })
+    else:
+        return jsonify(error={
+            "message": "No incomes found"
+        })
+
+
+
+
+
+
+
+
 @app.route('/add-budget', methods=["POST"])
+@login_required
 def add_budget():
     budget_limit = request.args.get("limit")
     budget_category = request.args.get("category")
@@ -245,6 +315,31 @@ def add_budget():
         }
     })
 
+
+@app.route('/edit-budget/<int:budget_id>', methods=["PATCH"])
+@login_required
+def edit_budget(budget_id):
+    new_limit = float(request.args.get("limit"))
+    chosen_budget = db.get_or_404(Budgets, budget_id)
+    chosen_budget.limit = new_limit
+    db.session.commit()
+    return jsonify(success={
+        "message": "Budget edited successfully",
+    })
+
+@app.route('/all-budgets', methods=["GET"])
+@login_required
+def all_budgets():
+    budgets = db.session.execute(db.select(Budgets).where(Budgets.users_id == current_user.get_id())).scalars().all()
+    all_user_budgets = [budget.to_dict() for budget in budgets]
+    if all_user_budgets:
+        return jsonify(success={
+            "budgets": all_user_budgets
+        })
+    else:
+        return jsonify(error={
+            "message": "No budgets found"
+        })
 
 if __name__ == "__main__":
     app.run(debug=True)
