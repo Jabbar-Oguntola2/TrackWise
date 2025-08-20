@@ -239,6 +239,17 @@ def show_expense(expense_id):
         })
 
 
+@app.route("/delete-expense/<int:expense_id>", methods=["DELETE"])
+@login_required
+def delete_expense(expense_id):
+    specific_expense = db.get_or_404(Expenses, expense_id)
+    db.session.delete(specific_expense)
+    db.session.commit()
+    return jsonify(success={
+        "message": "Expense deleted successfully",
+    })
+
+
 
 
 @app.route("/add-income", methods=["POST"])
@@ -306,6 +317,16 @@ def show_income(income_id):
         return jsonify(error={
             "message": "Income does not exist"
         })
+
+@app.route("/delete-income/<int:income_id>", methods=["DELETE"])
+@login_required
+def delete_income(income_id):
+    specific_income = db.get_or_404(Incomes, income_id)
+    db.session.delete(specific_income)
+    db.session.commit()
+    return jsonify(success={
+        "message": "Income deleted successfully",
+    })
 
 
 
@@ -379,6 +400,18 @@ def show_budget(budget_id):
         return jsonify(error={
             "message": "Budget does not exist"
         })
+
+
+
+@app.route('/delete-budget/<int:budget_id>', methods=["DELETE"])
+@login_required
+def delete_budget(budget_id):
+    specific_budget = db.get_or_404(Budgets, budget_id)
+    db.session.delete(specific_budget)
+    db.session.commit()
+    return jsonify(success={
+        "message": "Budget deleted successfully",
+    })
 
 
 
