@@ -5,6 +5,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import Integer, String, Float, ForeignKey
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
+import  pandas as pd
 import os
 from datetime import datetime
 load_dotenv()
@@ -43,7 +44,7 @@ class User(db.Model, UserMixin):
 class Expenses(db.Model):
     __tablename__ = 'expenses'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    cost: Mapped[int] = mapped_column(Float, nullable=False)
+    cost: Mapped[float] = mapped_column(Float, nullable=False)
     date: Mapped[str] = mapped_column(String(250), nullable=False)
     category: Mapped[str] = mapped_column(String(250), nullable=False)
 
@@ -59,7 +60,7 @@ class Expenses(db.Model):
 class Incomes(db.Model):
     __tablename__ = 'incomes'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    cost: Mapped[int] = mapped_column(Float, nullable=False)
+    cost: Mapped[float] = mapped_column(Float, nullable=False)
     date: Mapped[str] = mapped_column(String(250), nullable=False)
     category: Mapped[str] = mapped_column(String(250), nullable=False)
 
@@ -73,7 +74,7 @@ class Incomes(db.Model):
 class Budgets(db.Model):
     __tablename__ = 'budgets'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    limit: Mapped[int] = mapped_column(Float, nullable=False)
+    limit: Mapped[float] = mapped_column(Float, nullable=False)
     category: Mapped[str] = mapped_column(String(250), nullable=False)
     time_frame: Mapped[str] = mapped_column(String(250), nullable=False) #day, week, month
 
@@ -86,7 +87,7 @@ class Budgets(db.Model):
 
 with app.app_context():
     db.create_all()
-
+    engine = db.engine
 
 
 
@@ -97,26 +98,26 @@ login_manager.init_app(app)
 def load_user(user_id):
     return db.get_or_404(User, user_id)
 
-@app.route("/")
-def home():
-    return "<h1>Welcome to the Trackwise API!</h1>"
-
 
 def format_date(date):
-    sliced_date = date.split("/")
+    replaced_date = date.replace("-", "/")
+    sliced_date = replaced_date.split("/")
     tmp = sliced_date[0]
     sliced_date[0] = sliced_date[-1]
     sliced_date[-1] = tmp
     new_date = "/".join(sliced_date)
     return new_date
 
+@app.route("/")
+def home():
+    return "<h1>Welcome to the Trackwise API!</h1>"
+
 
 
 @app.route("/sign-in", methods=["GET","POST"])
 def sign_in():
     date = str(datetime.today().date())
-    corrected_date_format = date.replace("-", "/")
-    new_date = format_date(corrected_date_format)
+    new_date = format_date(date)
     name = request.args.get("name")
     hashed_and_salted_password = generate_password_hash(request.args.get("password"), method="pbkdf2:sha256", salt_length=8)
     user_email = request.args.get("email")
@@ -415,8 +416,70 @@ def delete_budget(budget_id):
 
 
 
+def get_total_balance(period=None):
+    '''Checks the total balance of the user within a certain period (daily, weekly or monthly)
+    If none is specified then it will give the net balance since account creation'''
+    current_date = str(datetime.today().date())
+    formatted_date = format_date(current_date)
+    with app.app_context():
+        df_expenses = pd.read_sql_table("expenses", engine)
+        df_incomes = pd.read_sql_table("incomes", engine)
+        if period == "daily":
+            total_expense = df_expenses[df_expenses.date == formatted_date].cost.sum()
+            total_income = df_incomes[df_incomes.date == formatted_date].cost.sum()
+
+        elif period == "weekly":
+            now = datetime.now()
+            week_number = now.isocalendar()[1]
+            expense_row_list = []
+            income_row_list = []
+            for index, row in df_expenses.iterrows():
+               date = row["date"].split("/")
+               if date[2] == "25":
+                   date[2] = "2025"
+
+               date_week_number = datetime(int(date[2]), int(date[1]), int(date[0])).isocalendar()[1]
+               if week_number == date_week_number:
+                expense_row_list.append(row["cost"])
+
+            for index, row in df_incomes.iterrows():
+               date = row["date"].split("/")
+               if date[2] == "25":
+                   date[2] = "2025"
+
+               date_week_number = datetime(int(date[2]), int(date[1]), int(date[0])).isocalendar()[1]
+               if week_number == date_week_number:
+                income_row_list.append(row["cost"])
+
+            total_expense = sum(expense_row_list)
+            total_income = sum(income_row_list)
+
+        elif period == "monthly":
+            curr_month = datetime.now().month
+            total_expense = sum([row["cost"] for index, row in df_expenses.iterrows() if int(row["date"].split("/")[1]) == curr_month])
+            total_income = sum([row["cost"] for index, row in df_incomes.iterrows() if int(row["date"].split("/")[1]) == curr_month])
 
 
+        else:
+            total_expense = df_expenses["cost"].sum()
+            total_incomes = df_incomes["cost"].sum()
+
+
+        total_balance = total_incomes - total_expense
+
+        return total_expense, total_incomes, total_balance
+
+
+
+
+
+
+
+
+
+
+
+get_total_balance("monthly")
 
 
 
