@@ -341,6 +341,11 @@ def add_budget():
     budget_limit = request.args.get("limit")
     budget_category = request.args.get("category")
     budget_time_frame = request.args.get("time_frame")
+    category_exists = db.session.execute(db.select(Budgets).where(Budgets.category == budget_category)).scalar_one_or_none()
+    if category_exists:
+        return jsonify(error={
+            "message": "This type of budget category already exists, delete your exisitng budget to create a new one :)",
+        }), 403
 
 
     new_budget = Budgets(
@@ -417,8 +422,8 @@ def delete_budget(budget_id):
 
 
 def get_total_balance(period=None):
-    '''Checks the total balance of the user within a certain period (daily, weekly or monthly)
-    If none is specified then it will give the net balance since account creation'''
+    """Checks the total balance of the user within a certain period (daily, weekly or monthly)
+    If none is specified then it will give the net balance since account creation"""
     current_date = str(datetime.today().date())
     formatted_date = format_date(current_date)
     with app.app_context():
@@ -426,7 +431,7 @@ def get_total_balance(period=None):
         df_incomes = pd.read_sql_table("incomes", engine)
         if period == "daily":
             total_expense = df_expenses[df_expenses.date == formatted_date].cost.sum()
-            total_income = df_incomes[df_incomes.date == formatted_date].cost.sum()
+            total_incomes = df_incomes[df_incomes.date == formatted_date].cost.sum()
 
         elif period == "weekly":
             now = datetime.now()
@@ -435,8 +440,6 @@ def get_total_balance(period=None):
             income_row_list = []
             for index, row in df_expenses.iterrows():
                date = row["date"].split("/")
-               if date[2] == "25":
-                   date[2] = "2025"
 
                date_week_number = datetime(int(date[2]), int(date[1]), int(date[0])).isocalendar()[1]
                if week_number == date_week_number:
@@ -452,12 +455,12 @@ def get_total_balance(period=None):
                 income_row_list.append(row["cost"])
 
             total_expense = sum(expense_row_list)
-            total_income = sum(income_row_list)
+            total_incomes = sum(income_row_list)
 
         elif period == "monthly":
             curr_month = datetime.now().month
             total_expense = sum([row["cost"] for index, row in df_expenses.iterrows() if int(row["date"].split("/")[1]) == curr_month])
-            total_income = sum([row["cost"] for index, row in df_incomes.iterrows() if int(row["date"].split("/")[1]) == curr_month])
+            total_incomes = sum([row["cost"] for index, row in df_incomes.iterrows() if int(row["date"].split("/")[1]) == curr_month])
 
 
         else:
@@ -469,17 +472,67 @@ def get_total_balance(period=None):
 
         return total_expense, total_incomes, total_balance
 
+def expenses_category_breakdown():
+    with app.app_context():
+        df_expenses = pd.read_sql_table("expenses", engine)
+        print(df_expenses)
+        rent = df_expenses[(df_expenses["category"] == "Rent") & (current_user.get_id() == df_expenses.users_id)].cost.sum()
+
+        food = df_expenses[(df_expenses["category"] == "Food") & (current_user.get_id() == df_expenses.users_id )].cost.sum()
+
+        entertainment = df_expenses[(df_expenses["category"] == "Entertainment") & (current_user.get_id() == df_expenses.users_id )].cost.sum()
+
+        transport = df_expenses[(df_expenses["category"] == "Transport") & (current_user.get_id() == df_expenses.users_id)].cost.sum()
+
+        shopping = df_expenses[(df_expenses["category"] == "Shopping") & (current_user.get_id() == df_expenses.users_id)].cost.sum()
+
+        return f"Rent:€{rent},\nFood:€{food},\nEntertainment:€{entertainment},\nTransport:€{transport},\nShopping:€{shopping}"
 
 
 
+def budget_tracker(**kwargs):
+    """ Checks Your budget and returns a statement on whether you have overused in your budget and if not returns how much of the budget you have used"""
+    budget_category = kwargs["category"].capitalize()
+    with app.app_context():
+        specific_budget = db.session.execute(db.select(Budgets).where(Budgets.category == budget_category, Budgets.users_id == 1)).scalar()
+        df_expenses = pd.read_sql_table("expenses", engine)
+        current_date = str(datetime.today().date())
+        formatted_date = format_date(current_date)
+        if specific_budget.time_frame == "daily":
+            df_expenses = pd.read_sql_table("expenses", engine)
+            total_expense = df_expenses[(df_expenses["category"] == budget_category) & (df_expenses["date"] == formatted_date)].cost.sum()
+
+        elif specific_budget.time_frame == "weekly":
+            now = datetime.now()
+            week_number = now.isocalendar()[1]
+            expense_row_list = []
+            for index, row in df_expenses.iterrows():
+                date = row["date"].split("/")
+
+                date_week_number = datetime(int(date[2]), int(date[1]), int(date[0])).isocalendar()[1]
+                if week_number == date_week_number and specific_budget.category == row.category:
+                    expense_row_list.append(row["cost"])
+
+            total_expense = sum(expense_row_list)
+
+        elif specific_budget.time_frame == "monthly":
+            curr_month = datetime.now().month
+            total_expense = sum([row["cost"] for index, row in df_expenses.iterrows() if int(row["date"].split("/")[1]) == curr_month and specific_budget.category == row.category])
 
 
 
+        budget_limit = specific_budget.limit
+        percentage = (total_expense /budget_limit) * 100
+        if not total_expense <= budget_limit:
+            return f" ❌ You are over your {specific_budget.category} budget."
+
+        elif 0 <= percentage <= 50:
+            return f"✅ You have used {percentage}% of your {specific_budget.category} budget."
+
+        elif 51 <= percentage <= 100:
+            return f"⚠️ You have used {percentage}% of your {specific_budget.category} budget."
 
 
-
-
-get_total_balance("monthly")
 
 
 
