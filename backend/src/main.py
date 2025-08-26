@@ -45,7 +45,7 @@ class Expenses(db.Model):
     __tablename__ = 'expenses'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     cost: Mapped[float] = mapped_column(Float, nullable=False)
-    date: Mapped[str] = mapped_column(String(250), nullable=False)
+    time_frame: Mapped[str] = mapped_column(String(250), nullable=False)
     category: Mapped[str] = mapped_column(String(250), nullable=False)
 
     #User relationship
@@ -61,7 +61,7 @@ class Incomes(db.Model):
     __tablename__ = 'incomes'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     cost: Mapped[float] = mapped_column(Float, nullable=False)
-    date: Mapped[str] = mapped_column(String(250), nullable=False)
+    time_stamp: Mapped[str] = mapped_column(String(250), nullable=False)
     category: Mapped[str] = mapped_column(String(250), nullable=False)
 
     # User relationship
@@ -473,6 +473,7 @@ def get_total_balance(period=None):
         return total_expense, total_incomes, total_balance
 
 def expenses_category_breakdown():
+    """Gets the category breakdown since account creation"""
     with app.app_context():
         df_expenses = pd.read_sql_table("expenses", engine)
         print(df_expenses)
