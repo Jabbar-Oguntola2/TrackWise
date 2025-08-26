@@ -19,6 +19,12 @@ app.config['SECRET_KEY'] = os.environ.get('FLASK_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DB_URI', 'sqlite:///track-wise.db')
 db.init_app(app)
 
+formatted_date = str(datetime.today().strftime('%d/%m/%Y'))
+
+
+time = str(datetime.today().time())
+formatted_time = time.split(".")[0]
+
 
 
 # Tables
@@ -43,8 +49,9 @@ class User(db.Model, UserMixin):
 class Expenses(db.Model):
     __tablename__ = 'expenses'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    cost: Mapped[int] = mapped_column(Float, nullable=False)
+    cost: Mapped[str] = mapped_column(Float, nullable=False)
     date: Mapped[str] = mapped_column(String(250), nullable=False)
+    time: Mapped[str] = mapped_column(String(250), nullable=False)
     category: Mapped[str] = mapped_column(String(250), nullable=False)
 
     #User relationship
@@ -59,8 +66,9 @@ class Expenses(db.Model):
 class Incomes(db.Model):
     __tablename__ = 'incomes'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    cost: Mapped[int] = mapped_column(Float, nullable=False)
+    cost: Mapped[str] = mapped_column(Float, nullable=False)
     date: Mapped[str] = mapped_column(String(250), nullable=False)
+    time: Mapped[str] = mapped_column(String(250), nullable=False)
     category: Mapped[str] = mapped_column(String(250), nullable=False)
 
     # User relationship
@@ -102,21 +110,9 @@ def home():
     return "<h1>Welcome to the Trackwise API!</h1>"
 
 
-def format_date(date):
-    sliced_date = date.split("/")
-    tmp = sliced_date[0]
-    sliced_date[0] = sliced_date[-1]
-    sliced_date[-1] = tmp
-    new_date = "/".join(sliced_date)
-    return new_date
-
-
-
 @app.route("/sign-in", methods=["GET","POST"])
 def sign_in():
-    date = str(datetime.today().date())
-    corrected_date_format = date.replace("-", "/")
-    new_date = format_date(corrected_date_format)
+    global formatted_date
     name = request.args.get("name")
     hashed_and_salted_password = generate_password_hash(request.args.get("password"), method="pbkdf2:sha256", salt_length=8)
     user_email = request.args.get("email")
@@ -129,7 +125,7 @@ def sign_in():
         name=name,
         password=hashed_and_salted_password,
         email=user_email,
-        creation_date=new_date,
+        creation_date=formatted_date,
 
         )
 
@@ -176,13 +172,14 @@ def logout():
 @app.route("/add-expense", methods=["POST"])
 @login_required
 def add_expense():
+    global formatted_date, formatted_time
     expense_cost = request.args.get("cost")
-    date_of_expense = request.args.get("date")
     expense_category = request.args.get("category")
 
     new_expense = Expenses(
         cost=expense_cost,
-        date=date_of_expense,
+        date=formatted_date,
+        time=formatted_time,
         category = expense_category,
         user = current_user
     )
@@ -196,6 +193,7 @@ def add_expense():
             "expense_cost": new_expense.cost,
             "expense_category": new_expense.category,
             "expense_date": new_expense.date,
+            "expense_time": new_expense.time,
         }
     }), 200
 
@@ -255,13 +253,13 @@ def delete_expense(expense_id):
 @app.route("/add-income", methods=["POST"])
 @login_required
 def add_income():
+    global formatted_date, formatted_time
     income_cost = request.args.get("cost")
     income_category = request.args.get("category")
-    income_date = request.args.get("date")
-
     new_income = Incomes(
         cost=income_cost,
-        date=income_date,
+        date=formatted_date,
+        time=formatted_time,
         category = income_category,
         user = current_user
     )
@@ -276,6 +274,7 @@ def add_income():
             "income_cost": new_income.cost,
             "income_category": new_income.category,
             "income_date": new_income.date,
+            "income_time": new_income.time,
         }
     }), 200
 
