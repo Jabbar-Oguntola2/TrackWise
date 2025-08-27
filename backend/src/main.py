@@ -1,3 +1,4 @@
+import pandas as pd
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
@@ -94,6 +95,7 @@ class Budgets(db.Model):
 
 with app.app_context():
     db.create_all()
+    engine = db.engine
 
 
 
@@ -411,6 +413,104 @@ def delete_budget(budget_id):
     return jsonify(success={
         "message": "Budget deleted successfully",
     })
+
+
+def get_totals_by_period(period):
+    global formatted_date, formatted_time
+    with app.app_context():
+        df_expenses = pd.read_sql_table("expenses", engine)
+        df_incomes = pd.read_sql_table("incomes", engine)
+        if period == "daily":
+            daily_dic_total = {}
+            expenses = df_expenses[df_expenses["users_id"] == 1].groupby("date").cost.sum()
+            incomes =  df_incomes[df_incomes["users_id"] == 1].groupby("date").cost.sum()
+
+            for date, total in expenses.items():
+                if date not in daily_dic_total.keys():
+                    daily_dic_total[date] = {
+                        "expenses": total,
+                        "incomes": float(0),
+                    }
+                else:
+                    daily_dic_total[date]["expenses"] += total
+
+            for date, total in incomes.items():
+                if date not in daily_dic_total.keys():
+                    daily_dic_total[date] = {
+                        "expenses": float(0),
+                        "incomes": total,
+                    }
+                else:
+                    daily_dic_total[date]["incomes"] += total
+
+            return daily_dic_total
+
+        elif period == "weekly":
+            weekly_dic_total = {}
+            expenses = df_expenses[df_expenses["users_id"] == 1].groupby("date").cost.sum()
+            incomes = df_incomes[df_incomes["users_id"] == 1].groupby("date").cost.sum()
+
+            for date, total in expenses.items():
+                date_week = datetime.strptime(date, "%d/%m/%Y").isocalendar()[1]
+                if f"Week {date_week}" not in weekly_dic_total.keys():
+                    weekly_dic_total[f"Week {date_week}"] = {
+                        "expenses": total,
+                        "incomes": float(0)
+                    }
+                else:
+                    weekly_dic_total[f"Week {date_week}"]["expenses"] += total
+
+            for date, total in incomes.items():
+                date_week = datetime.strptime(date, "%d/%m/%Y").isocalendar()[1]
+                if f"Week {date_week}" not in weekly_dic_total.keys():
+                    weekly_dic_total[f"Week {date_week}"] = {
+                        "expenses": float(0),
+                        "incomes": total,
+                    }
+                else:
+                    weekly_dic_total[f"Week {date_week}"]["incomes"] += total
+
+
+            return weekly_dic_total
+
+        elif period == "monthly":
+            months_list = ["January", "February", "March", "April", "May", "June", "July", "August",
+                           "September", "October", "November", "December"]
+            monthly_dic_total = {}
+            expenses = df_expenses[df_expenses["users_id"] == 1].groupby("date").cost.sum()
+            incomes = df_incomes[df_incomes["users_id"] == 1].groupby("date").cost.sum()
+
+            for date, total in expenses.items():
+                date_month = int(date.split("/")[1]) - 1
+                if months_list[date_month] not in monthly_dic_total.keys():
+                    monthly_dic_total[months_list[date_month]] = {
+                        "expenses": total,
+                        "incomes": float(0)
+                    }
+                else:
+                     monthly_dic_total[months_list[date_month]]["expenses"] += total
+
+            for date, total in incomes.items():
+                date_month = int(date.split("/")[1]) - 1
+                if months_list[date_month] not in monthly_dic_total.keys():
+                    monthly_dic_total[months_list[date_month]] = {
+                        "expenses": float(0),
+                        "incomes": total
+                    }
+                else:
+                    monthly_dic_total[months_list[date_month]]["incomes"] += total
+
+                return monthly_dic_total
+
+        return None
+
+
+
+
+
+
+
+
 
 
 
