@@ -416,14 +416,15 @@ def delete_budget(budget_id):
 
 
 def get_totals_by_period(period):
+    """Gets the total expenses and incomes  and the balance for a given period."""
     global formatted_date, formatted_time
     with app.app_context():
         df_expenses = pd.read_sql_table("expenses", engine)
         df_incomes = pd.read_sql_table("incomes", engine)
+        expenses = df_expenses[df_expenses["users_id"] == 1].groupby("date").cost.sum()
+        incomes = df_incomes[df_incomes["users_id"] == 1].groupby("date").cost.sum()
         if period == "daily":
             daily_dic_total = {}
-            expenses = df_expenses[df_expenses["users_id"] == 1].groupby("date").cost.sum()
-            incomes =  df_incomes[df_incomes["users_id"] == 1].groupby("date").cost.sum()
 
             for date, total in expenses.items():
                 if date not in daily_dic_total.keys():
@@ -443,13 +444,13 @@ def get_totals_by_period(period):
                 else:
                     daily_dic_total[date]["incomes"] += total
 
+            for key in daily_dic_total.keys():
+                daily_dic_total[key]["balance"] = daily_dic_total[key]["incomes"] - daily_dic_total[key]["expenses"]
+
             return daily_dic_total
 
         elif period == "weekly":
             weekly_dic_total = {}
-            expenses = df_expenses[df_expenses["users_id"] == 1].groupby("date").cost.sum()
-            incomes = df_incomes[df_incomes["users_id"] == 1].groupby("date").cost.sum()
-
             for date, total in expenses.items():
                 date_week = datetime.strptime(date, "%d/%m/%Y").isocalendar()[1]
                 if f"Week {date_week}" not in weekly_dic_total.keys():
@@ -470,16 +471,14 @@ def get_totals_by_period(period):
                 else:
                     weekly_dic_total[f"Week {date_week}"]["incomes"] += total
 
-
+            for key in weekly_dic_total.keys():
+                weekly_dic_total[key]["balance"] = weekly_dic_total[key]["incomes"] - weekly_dic_total[key]["expenses"]
             return weekly_dic_total
 
         elif period == "monthly":
             months_list = ["January", "February", "March", "April", "May", "June", "July", "August",
                            "September", "October", "November", "December"]
             monthly_dic_total = {}
-            expenses = df_expenses[df_expenses["users_id"] == 1].groupby("date").cost.sum()
-            incomes = df_incomes[df_incomes["users_id"] == 1].groupby("date").cost.sum()
-
             for date, total in expenses.items():
                 date_month = int(date.split("/")[1]) - 1
                 if months_list[date_month] not in monthly_dic_total.keys():
@@ -489,6 +488,7 @@ def get_totals_by_period(period):
                     }
                 else:
                      monthly_dic_total[months_list[date_month]]["expenses"] += total
+
 
             for date, total in incomes.items():
                 date_month = int(date.split("/")[1]) - 1
@@ -500,10 +500,16 @@ def get_totals_by_period(period):
                 else:
                     monthly_dic_total[months_list[date_month]]["incomes"] += total
 
-                return monthly_dic_total
+
+
+
+            for key in monthly_dic_total.keys():
+                monthly_dic_total[key]["balance"] = monthly_dic_total[key]["incomes"] - monthly_dic_total[key]["expenses"]
+
+
+            return monthly_dic_total
 
         return None
-
 
 
 
