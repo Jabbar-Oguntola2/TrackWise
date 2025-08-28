@@ -21,11 +21,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DB_URI', 'sqlite:///trac
 db.init_app(app)
 
 formatted_date = str(datetime.today().strftime('%d/%m/%Y'))
-
-
 time = str(datetime.today().time())
 formatted_time = time.split(".")[0]
-
+week_number = datetime.today().isocalendar()[1]
+month_number = datetime.today().month
 
 
 # Tables
@@ -510,6 +509,95 @@ def get_totals_by_period(period):
             return monthly_dic_total
 
         return None
+
+
+
+
+
+def get_category_breakdown(period=None):
+    """ Gets breakdown of user spending categories over a certain period """
+    global formatted_date, week_number, month_number
+    with app.app_context():
+        categories = ["Food & Groceries", "Shopping & Entertainemnt", "Housing & Rent", "Transport", "Health & Personal"]
+        df_expenses = pd.read_sql_table("expenses", engine)
+
+        if period == "daily":
+            daily_break_down = {}
+            df_today_total = df_expenses[df_expenses["date"] == formatted_date]
+            if df_today_total.empty:
+                return None
+
+            daily_total = df_today_total.cost.sum()
+            for category in categories:
+                category_total = df_today_total[df_today_total["category"] == category].cost.sum()
+                percentage = round((category_total / daily_total) * 100, 2)
+                daily_break_down[category] = f"{percentage}%"
+
+            return daily_break_down
+
+        elif period == "weekly":
+            weekly_break_down = {}
+            weekly_total = 0
+            for index, row in df_expenses.iterrows():
+                date_week_number = datetime.strptime(row["date"], "%d/%m/%Y").isocalendar()[1]
+                if date_week_number == week_number:
+                    weekly_total += row["cost"]
+
+
+
+            for category in categories:
+                category_summary = df_expenses[df_expenses["category"] == category]
+
+                category_total = 0
+                for index, row in category_summary.iterrows():
+                    date_week_number = datetime.strptime(row["date"], "%d/%m/%Y").isocalendar()[1]
+                    if date_week_number == week_number:
+                        category_total += row["cost"]
+
+                percentage = round((category_total / weekly_total) * 100, 2)
+                weekly_break_down[category] = f"{percentage}%"
+
+            return weekly_break_down
+
+        elif period == "monthly":
+            monthly_break_down = {}
+            monthly_total = 0
+            for index, row in df_expenses.iterrows():
+                date_month = int(row["date"].split("/")[1])
+                if date_month == month_number:
+                    monthly_total += row["cost"]
+
+
+            for category in categories:
+                category_summary = df_expenses[df_expenses["category"] == category]
+                category_total = 0
+                for index, row in category_summary.iterrows():
+                    row_month_number = int(row["date"].split("/")[1])
+                    if row_month_number == month_number:
+                        category_total += row["cost"]
+
+                percentage = round((category_total / monthly_total) * 100, 2)
+                monthly_break_down[category] = f"{percentage}%"
+
+
+            return monthly_break_down
+
+        elif period == "all-time":
+            overall_breakdown = {}
+            overall_total = df_expenses["cost"].sum()
+
+            for category in categories:
+                category_total = df_expenses[df_expenses["category"] == category].cost.sum()
+                percentage = round((category_total / overall_total) * 100, 2)
+                overall_breakdown[category] = f"{percentage}%"
+
+            return overall_breakdown
+
+
+
+
+
+
 
 
 
