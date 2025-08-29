@@ -420,8 +420,8 @@ def get_totals_by_period(period):
     with app.app_context():
         df_expenses = pd.read_sql_table("expenses", engine)
         df_incomes = pd.read_sql_table("incomes", engine)
-        expenses = df_expenses[df_expenses["users_id"] == 1].groupby("date").cost.sum()
-        incomes = df_incomes[df_incomes["users_id"] == 1].groupby("date").cost.sum()
+        expenses = df_expenses[df_expenses["users_id"] == current_user.get_id()].groupby("date").cost.sum()
+        incomes = df_incomes[df_incomes["users_id"] == current_user.get_id()].groupby("date").cost.sum()
         if period == "daily":
             daily_dic_total = {}
 
@@ -596,6 +596,26 @@ def get_category_breakdown(period=None):
 
 
 
+def top_spending_categories():
+    """returns the top 3 spending categories since account creation"""
+    categories = ["Food & Groceries", "Shopping & Entertainemnt", "Housing & Rent", "Transport", "Health & Personal"]
+    with app.app_context():
+        df_expenses = pd.read_sql_table("expenses", engine)
+        summarised_categories = {}
+        for c in categories:
+            summarised_categories[c] = float(df_expenses[(df_expenses["category"] == c) & (df_expenses["users_id"] == 1)].cost.sum())
+
+        top_spending_categories = {}
+        while len(top_spending_categories) < 3:
+            values = list(summarised_categories.values())
+            greatest_value = max(values)
+            index = values.index(greatest_value)
+            keys = list(summarised_categories.keys())
+            category = keys[index]
+            top_spending_categories[category] = greatest_value
+            del summarised_categories[category]
+
+        return top_spending_categories
 
 
 
@@ -612,6 +632,17 @@ def get_category_breakdown(period=None):
 
 
 
+
+
+
+
+
+
+
+
+
+
+top_spending_categories()
 
 if __name__ == "__main__":
     app.run(debug=True)
