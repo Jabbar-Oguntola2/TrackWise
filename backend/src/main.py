@@ -1,3 +1,4 @@
+import pandas as pd
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, current_user, login_required
@@ -5,7 +6,6 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import Integer, String, Float, ForeignKey
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
-import  pandas as pd
 import os
 from datetime import datetime
 load_dotenv()
@@ -20,6 +20,11 @@ app.config['SECRET_KEY'] = os.environ.get('FLASK_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DB_URI', 'sqlite:///track-wise.db')
 db.init_app(app)
 
+formatted_date = str(datetime.today().strftime('%d/%m/%Y'))
+time = str(datetime.today().time())
+formatted_time = time.split(".")[0]
+week_number = datetime.today().isocalendar()[1]
+month_number = datetime.today().month
 
 
 # Tables
@@ -44,8 +49,9 @@ class User(db.Model, UserMixin):
 class Expenses(db.Model):
     __tablename__ = 'expenses'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    cost: Mapped[float] = mapped_column(Float, nullable=False)
-    time_frame: Mapped[str] = mapped_column(String(250), nullable=False)
+    cost: Mapped[str] = mapped_column(Float, nullable=False)
+    date: Mapped[str] = mapped_column(String(250), nullable=False)
+    time: Mapped[str] = mapped_column(String(250), nullable=False)
     category: Mapped[str] = mapped_column(String(250), nullable=False)
 
     #User relationship
@@ -60,8 +66,9 @@ class Expenses(db.Model):
 class Incomes(db.Model):
     __tablename__ = 'incomes'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    cost: Mapped[float] = mapped_column(Float, nullable=False)
-    time_stamp: Mapped[str] = mapped_column(String(250), nullable=False)
+    cost: Mapped[str] = mapped_column(Float, nullable=False)
+    date: Mapped[str] = mapped_column(String(250), nullable=False)
+    time: Mapped[str] = mapped_column(String(250), nullable=False)
     category: Mapped[str] = mapped_column(String(250), nullable=False)
 
     # User relationship
@@ -74,8 +81,8 @@ class Incomes(db.Model):
 class Budgets(db.Model):
     __tablename__ = 'budgets'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    limit: Mapped[float] = mapped_column(Float, nullable=False)
-    category: Mapped[str] = mapped_column(String(250), nullable=False)
+    limit: Mapped[int] = mapped_column(Float, nullable=False)
+    category: Mapped[str] = mapped_column(String(250), nullable=False, unique=True)
     time_frame: Mapped[str] = mapped_column(String(250), nullable=False) #day, week, month
 
     #relationship with User
@@ -91,6 +98,7 @@ with app.app_context():
 
 
 
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 
@@ -98,26 +106,14 @@ login_manager.init_app(app)
 def load_user(user_id):
     return db.get_or_404(User, user_id)
 
-
-def format_date(date):
-    replaced_date = date.replace("-", "/")
-    sliced_date = replaced_date.split("/")
-    tmp = sliced_date[0]
-    sliced_date[0] = sliced_date[-1]
-    sliced_date[-1] = tmp
-    new_date = "/".join(sliced_date)
-    return new_date
-
 @app.route("/")
 def home():
     return "<h1>Welcome to the Trackwise API!</h1>"
 
 
-
 @app.route("/sign-in", methods=["GET","POST"])
 def sign_in():
-    date = str(datetime.today().date())
-    new_date = format_date(date)
+    global formatted_date
     name = request.args.get("name")
     hashed_and_salted_password = generate_password_hash(request.args.get("password"), method="pbkdf2:sha256", salt_length=8)
     user_email = request.args.get("email")
@@ -130,7 +126,7 @@ def sign_in():
         name=name,
         password=hashed_and_salted_password,
         email=user_email,
-        creation_date=new_date,
+        creation_date=formatted_date,
 
         )
 
@@ -177,13 +173,14 @@ def logout():
 @app.route("/add-expense", methods=["POST"])
 @login_required
 def add_expense():
+    global formatted_date, formatted_time
     expense_cost = request.args.get("cost")
-    date_of_expense = request.args.get("date")
     expense_category = request.args.get("category")
 
     new_expense = Expenses(
         cost=expense_cost,
-        date=date_of_expense,
+        date=formatted_date,
+        time=formatted_time,
         category = expense_category,
         user = current_user
     )
@@ -197,6 +194,7 @@ def add_expense():
             "expense_cost": new_expense.cost,
             "expense_category": new_expense.category,
             "expense_date": new_expense.date,
+            "expense_time": new_expense.time,
         }
     }), 200
 
@@ -218,7 +216,7 @@ def all_expenses():
     all_user_expenses = [expense.to_dict() for expense in expenses]
     if all_user_expenses:
         return jsonify(success={
-            "budgets": all_user_expenses,
+            "expenses": all_user_expenses,
         })
     else:
         return jsonify(error={
@@ -256,13 +254,13 @@ def delete_expense(expense_id):
 @app.route("/add-income", methods=["POST"])
 @login_required
 def add_income():
+    global formatted_date, formatted_time
     income_cost = request.args.get("cost")
     income_category = request.args.get("category")
-    income_date = request.args.get("date")
-
     new_income = Incomes(
         cost=income_cost,
-        date=income_date,
+        date=formatted_date,
+        time=formatted_time,
         category = income_category,
         user = current_user
     )
@@ -277,6 +275,7 @@ def add_income():
             "income_cost": new_income.cost,
             "income_category": new_income.category,
             "income_date": new_income.date,
+            "income_time": new_income.time,
         }
     }), 200
 
@@ -341,11 +340,12 @@ def add_budget():
     budget_limit = request.args.get("limit")
     budget_category = request.args.get("category")
     budget_time_frame = request.args.get("time_frame")
-    category_exists = db.session.execute(db.select(Budgets).where(Budgets.category == budget_category)).scalar_one_or_none()
-    if category_exists:
+
+    check_category = db.session.execute(db.select(Budgets).where(Budgets.category == budget_category)).scalar_one_or_none()
+    if check_category:
         return jsonify(error={
-            "message": "This type of budget category already exists, delete your exisitng budget to create a new one :)",
-        }), 403
+            "message": "Budget category already exists"
+        })
 
 
     new_budget = Budgets(
@@ -420,118 +420,300 @@ def delete_budget(budget_id):
     })
 
 
-
-def get_total_balance(period=None):
-    """Checks the total balance of the user within a certain period (daily, weekly or monthly)
-    If none is specified then it will give the net balance since account creation"""
-    current_date = str(datetime.today().date())
-    formatted_date = format_date(current_date)
+def get_totals_by_period(period):
+    """Gets the total expenses and incomes  and the balance for a given period."""
+    global formatted_date, formatted_time
     with app.app_context():
         df_expenses = pd.read_sql_table("expenses", engine)
         df_incomes = pd.read_sql_table("incomes", engine)
+        expenses = df_expenses[df_expenses["users_id"] == current_user.get_id()].groupby("date").cost.sum()
+        incomes = df_incomes[df_incomes["users_id"] == current_user.get_id()].groupby("date").cost.sum()
         if period == "daily":
-            total_expense = df_expenses[df_expenses.date == formatted_date].cost.sum()
-            total_incomes = df_incomes[df_incomes.date == formatted_date].cost.sum()
+            daily_dic_total = {}
+
+            for date, total in expenses.items():
+                if date not in daily_dic_total.keys():
+                    daily_dic_total[date] = {
+                        "expenses": total,
+                        "incomes": float(0),
+                    }
+                else:
+                    daily_dic_total[date]["expenses"] += total
+
+            for date, total in incomes.items():
+                if date not in daily_dic_total.keys():
+                    daily_dic_total[date] = {
+                        "expenses": float(0),
+                        "incomes": total,
+                    }
+                else:
+                    daily_dic_total[date]["incomes"] += total
+
+            for key in daily_dic_total.keys():
+                daily_dic_total[key]["balance"] = daily_dic_total[key]["incomes"] - daily_dic_total[key]["expenses"]
+
+            return daily_dic_total
 
         elif period == "weekly":
-            now = datetime.now()
-            week_number = now.isocalendar()[1]
-            expense_row_list = []
-            income_row_list = []
-            for index, row in df_expenses.iterrows():
-               date = row["date"].split("/")
+            weekly_dic_total = {}
+            for date, total in expenses.items():
+                date_week = datetime.strptime(date, "%d/%m/%Y").isocalendar()[1]
+                if f"Week {date_week}" not in weekly_dic_total.keys():
+                    weekly_dic_total[f"Week {date_week}"] = {
+                        "expenses": total,
+                        "incomes": float(0)
+                    }
+                else:
+                    weekly_dic_total[f"Week {date_week}"]["expenses"] += total
 
-               date_week_number = datetime(int(date[2]), int(date[1]), int(date[0])).isocalendar()[1]
-               if week_number == date_week_number:
-                expense_row_list.append(row["cost"])
+            for date, total in incomes.items():
+                date_week = datetime.strptime(date, "%d/%m/%Y").isocalendar()[1]
+                if f"Week {date_week}" not in weekly_dic_total.keys():
+                    weekly_dic_total[f"Week {date_week}"] = {
+                        "expenses": float(0),
+                        "incomes": total,
+                    }
+                else:
+                    weekly_dic_total[f"Week {date_week}"]["incomes"] += total
 
-            for index, row in df_incomes.iterrows():
-               date = row["date"].split("/")
-               if date[2] == "25":
-                   date[2] = "2025"
-
-               date_week_number = datetime(int(date[2]), int(date[1]), int(date[0])).isocalendar()[1]
-               if week_number == date_week_number:
-                income_row_list.append(row["cost"])
-
-            total_expense = sum(expense_row_list)
-            total_incomes = sum(income_row_list)
+            for key in weekly_dic_total.keys():
+                weekly_dic_total[key]["balance"] = weekly_dic_total[key]["incomes"] - weekly_dic_total[key]["expenses"]
+            return weekly_dic_total
 
         elif period == "monthly":
-            curr_month = datetime.now().month
-            total_expense = sum([row["cost"] for index, row in df_expenses.iterrows() if int(row["date"].split("/")[1]) == curr_month])
-            total_incomes = sum([row["cost"] for index, row in df_incomes.iterrows() if int(row["date"].split("/")[1]) == curr_month])
+            months_list = ["January", "February", "March", "April", "May", "June", "July", "August",
+                           "September", "October", "November", "December"]
+            monthly_dic_total = {}
+            for date, total in expenses.items():
+                date_month = int(date.split("/")[1]) - 1
+                if months_list[date_month] not in monthly_dic_total.keys():
+                    monthly_dic_total[months_list[date_month]] = {
+                        "expenses": total,
+                        "incomes": float(0)
+                    }
+                else:
+                     monthly_dic_total[months_list[date_month]]["expenses"] += total
 
 
-        else:
-            total_expense = df_expenses["cost"].sum()
-            total_incomes = df_incomes["cost"].sum()
+            for date, total in incomes.items():
+                date_month = int(date.split("/")[1]) - 1
+                if months_list[date_month] not in monthly_dic_total.keys():
+                    monthly_dic_total[months_list[date_month]] = {
+                        "expenses": float(0),
+                        "incomes": total
+                    }
+                else:
+                    monthly_dic_total[months_list[date_month]]["incomes"] += total
 
 
-        total_balance = total_incomes - total_expense
 
-        return total_expense, total_incomes, total_balance
 
-def expenses_category_breakdown():
-    """Gets the category breakdown since account creation"""
+            for key in monthly_dic_total.keys():
+                monthly_dic_total[key]["balance"] = monthly_dic_total[key]["incomes"] - monthly_dic_total[key]["expenses"]
+
+
+            return monthly_dic_total
+
+        return None
+
+
+
+
+
+def get_category_breakdown(period=None):
+    """ Gets breakdown of user spending categories over a certain period """
+    global formatted_date, week_number, month_number
     with app.app_context():
+        categories = ["Food & Groceries", "Shopping & Entertainemnt", "Housing & Rent", "Transport", "Health & Personal"]
         df_expenses = pd.read_sql_table("expenses", engine)
-        print(df_expenses)
-        rent = df_expenses[(df_expenses["category"] == "Rent") & (current_user.get_id() == df_expenses.users_id)].cost.sum()
+        expenses = df_expenses[df_expenses["users_id"] == current_user.get_id()]
 
-        food = df_expenses[(df_expenses["category"] == "Food") & (current_user.get_id() == df_expenses.users_id )].cost.sum()
+        if period == "daily":
+            daily_break_down = {}
+            df_today_total = expenses[expenses["date"] == formatted_date]
+            if df_today_total.empty:
+                return None
 
-        entertainment = df_expenses[(df_expenses["category"] == "Entertainment") & (current_user.get_id() == df_expenses.users_id )].cost.sum()
+            daily_total = df_today_total.cost.sum()
+            for category in categories:
+                category_total = df_today_total[df_today_total["category"] == category].cost.sum()
+                percentage = round((category_total / daily_total) * 100, 2)
+                daily_break_down[category] = f"{percentage}%"
 
-        transport = df_expenses[(df_expenses["category"] == "Transport") & (current_user.get_id() == df_expenses.users_id)].cost.sum()
+            return daily_break_down
 
-        shopping = df_expenses[(df_expenses["category"] == "Shopping") & (current_user.get_id() == df_expenses.users_id)].cost.sum()
-
-        return f"Rent:€{rent},\nFood:€{food},\nEntertainment:€{entertainment},\nTransport:€{transport},\nShopping:€{shopping}"
-
-
-
-def budget_tracker(**kwargs):
-    """ Checks Your budget and returns a statement on whether you have overused in your budget and if not returns how much of the budget you have used"""
-    budget_category = kwargs["category"].capitalize()
-    with app.app_context():
-        specific_budget = db.session.execute(db.select(Budgets).where(Budgets.category == budget_category, Budgets.users_id == 1)).scalar()
-        df_expenses = pd.read_sql_table("expenses", engine)
-        current_date = str(datetime.today().date())
-        formatted_date = format_date(current_date)
-        if specific_budget.time_frame == "daily":
-            df_expenses = pd.read_sql_table("expenses", engine)
-            total_expense = df_expenses[(df_expenses["category"] == budget_category) & (df_expenses["date"] == formatted_date)].cost.sum()
-
-        elif specific_budget.time_frame == "weekly":
-            now = datetime.now()
-            week_number = now.isocalendar()[1]
-            expense_row_list = []
+        elif period == "weekly":
+            weekly_break_down = {}
+            weekly_total = 0
             for index, row in df_expenses.iterrows():
-                date = row["date"].split("/")
-
-                date_week_number = datetime(int(date[2]), int(date[1]), int(date[0])).isocalendar()[1]
-                if week_number == date_week_number and specific_budget.category == row.category:
-                    expense_row_list.append(row["cost"])
-
-            total_expense = sum(expense_row_list)
-
-        elif specific_budget.time_frame == "monthly":
-            curr_month = datetime.now().month
-            total_expense = sum([row["cost"] for index, row in df_expenses.iterrows() if int(row["date"].split("/")[1]) == curr_month and specific_budget.category == row.category])
+                date_week_number = datetime.strptime(row["date"], "%d/%m/%Y").isocalendar()[1]
+                if date_week_number == week_number:
+                    weekly_total += row["cost"]
 
 
 
-        budget_limit = specific_budget.limit
-        percentage = (total_expense /budget_limit) * 100
-        if not total_expense <= budget_limit:
-            return f" ❌ You are over your {specific_budget.category} budget."
+            for category in categories:
+                category_summary = expenses[expenses["category"] == category]
+
+                category_total = 0
+                for index, row in category_summary.iterrows():
+                    date_week_number = datetime.strptime(row["date"], "%d/%m/%Y").isocalendar()[1]
+                    if date_week_number == week_number:
+                        category_total += row["cost"]
+
+                percentage = round((category_total / weekly_total) * 100, 2)
+                weekly_break_down[category] = f"{percentage}%"
+
+            return weekly_break_down
+
+        elif period == "monthly":
+            monthly_break_down = {}
+            monthly_total = 0
+            for index, row in expenses.iterrows():
+                date_month = int(row["date"].split("/")[1])
+                if date_month == month_number:
+                    monthly_total += row["cost"]
+
+
+            for category in categories:
+                category_summary = expenses[expenses["category"] == category]
+                category_total = 0
+                for index, row in category_summary.iterrows():
+                    row_month_number = int(row["date"].split("/")[1])
+                    if row_month_number == month_number:
+                        category_total += row["cost"]
+
+                percentage = round((category_total / monthly_total) * 100, 2)
+                monthly_break_down[category] = f"{percentage}%"
+
+
+            return monthly_break_down
+
+        elif period == "all-time":
+            overall_breakdown = {}
+            overall_total = df_expenses["cost"].sum()
+
+            for category in categories:
+                category_total = expenses[expenses["category"] == category].cost.sum()
+                percentage = round((category_total / overall_total) * 100, 2)
+                overall_breakdown[category] = f"{percentage}%"
+
+            return overall_breakdown
+
+
+
+
+def top_spending_categories():
+    """returns the top 3 spending categories since account creation"""
+    categories = ["Food & Groceries", "Shopping & Entertainment", "Housing & Rent", "Transport", "Health & Personal"]
+    with app.app_context():
+        df_expenses = pd.read_sql_table("expenses", engine)
+        expenses = df_expenses[df_expenses["users_id"] == current_user.get_id()]
+        if not expenses:
+            return None
+        summarised_categories = {}
+        for c in categories:
+            summarised_categories[c] = float(expenses[(expenses["category"] == c) & (expenses["users_id"] == current_user.get_id())].cost.sum())
+
+        top_spending_categories = {}
+        while len(top_spending_categories) < 3:
+            values = list(summarised_categories.values())
+            greatest_value = max(values)
+            index = values.index(greatest_value)
+            keys = list(summarised_categories.keys())
+            category = keys[index]
+            top_spending_categories[category] = greatest_value
+            del summarised_categories[category]
+
+        return top_spending_categories
+
+
+
+def budget_tracker(category=None):
+    global formatted_date, week_number, month_number
+    if not category:
+        return None
+    with app.app_context():
+        df_expenses = pd.read_sql_table("expenses", engine)
+        expenses = df_expenses[df_expenses["users_id"] == current_user.get_id()]
+
+        if expenses.empty:
+            return "Please add expenese to allow budget tracking"
+
+        df_budgets = pd.read_sql_table("budgets", engine)
+        budget = df_budgets[(df_budgets["category"] == category) & (df_budgets["users_id"] == current_user.get_id())]
+
+        if budget.empty:
+            return "Budget does not exist"
+        budget_limit = float(budget["limit"].iloc[0])
+        period = budget["time_frame"].iloc[0]
+        if period == "daily":
+            category_total = expenses[(expenses["category"] == category) & (expenses["date"] == formatted_date)].cost.sum()
+
+        elif period == "weekly":
+            df_category = expenses[expenses["category"] == category]
+            category_total = 0
+            for index, row in df_category.iterrows():
+                row_date_number = datetime.strptime(row["date"], "%d/%m/%Y").isocalendar()[1]
+                if row_date_number == week_number:
+                    category_total += float(row["cost"])
+
+
+        elif period == "monthly":
+            df_category = expenses[expenses["category"] == category]
+            category_total = 0
+            for index, row in df_category.iterrows():
+                row_date_month_number = int(row["date"].split("/")[1])
+                if row_date_month_number == month_number:
+                    category_total += float(row["cost"])
+
+        percentage = (category_total / budget_limit) * 100
+        if not category_total <= budget_limit:
+            return category_total, budget_limit, f" ❌ You are over your {category} budget."
 
         elif 0 <= percentage <= 50:
-            return f"✅ You have used {percentage}% of your {specific_budget.category} budget."
+            return category_total, budget_limit ,f"✅ You have used {percentage}% of your {category} budget."
 
         elif 51 <= percentage <= 100:
-            return f"⚠️ You have used {percentage}% of your {specific_budget.category} budget."
+            return category_total, budget_limit ,f"⚠️ You have used {percentage}% of your {category} budget."
+
+        return None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
