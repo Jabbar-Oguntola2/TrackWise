@@ -82,7 +82,7 @@ class Budgets(db.Model):
     __tablename__ = 'budgets'
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     limit: Mapped[int] = mapped_column(Float, nullable=False)
-    category: Mapped[str] = mapped_column(String(250), nullable=False)
+    category: Mapped[str] = mapped_column(String(250), nullable=False, unique=True)
     time_frame: Mapped[str] = mapped_column(String(250), nullable=False) #day, week, month
 
     #relationship with User
@@ -216,7 +216,7 @@ def all_expenses():
     all_user_expenses = [expense.to_dict() for expense in expenses]
     if all_user_expenses:
         return jsonify(success={
-            "budgets": all_user_expenses,
+            "expenses": all_user_expenses,
         })
     else:
         return jsonify(error={
@@ -340,6 +340,12 @@ def add_budget():
     budget_limit = request.args.get("limit")
     budget_category = request.args.get("category")
     budget_time_frame = request.args.get("time_frame")
+
+    check_category = db.session.execute(db.select(Budgets).where(Budgets.category == budget_category)).scalar_one_or_none()
+    if check_category:
+        return jsonify(error={
+            "message": "Budget category already exists"
+        })
 
 
     new_budget = Budgets(
@@ -599,7 +605,7 @@ def get_category_breakdown(period=None):
 
 def top_spending_categories():
     """returns the top 3 spending categories since account creation"""
-    categories = ["Food & Groceries", "Shopping & Entertainemnt", "Housing & Rent", "Transport", "Health & Personal"]
+    categories = ["Food & Groceries", "Shopping & Entertainment", "Housing & Rent", "Transport", "Health & Personal"]
     with app.app_context():
         df_expenses = pd.read_sql_table("expenses", engine)
         expenses = df_expenses[df_expenses["users_id"] == current_user.get_id()]
@@ -620,6 +626,74 @@ def top_spending_categories():
             del summarised_categories[category]
 
         return top_spending_categories
+
+
+
+def budget_tracker(category=None):
+    global formatted_date, week_number, month_number
+    if not category:
+        return None
+    with app.app_context():
+        df_expenses = pd.read_sql_table("expenses", engine)
+        expenses = df_expenses[df_expenses["users_id"] == current_user.get_id()]
+
+        if expenses.empty:
+            return "Please add expenese to allow budget tracking"
+
+        df_budgets = pd.read_sql_table("budgets", engine)
+        budget = df_budgets[(df_budgets["category"] == category) & (df_budgets["users_id"] == current_user.get_id())]
+
+        if budget.empty:
+            return "Budget does not exist"
+        budget_limit = float(budget["limit"].iloc[0])
+        period = budget["time_frame"].iloc[0]
+        if period == "daily":
+            category_total = expenses[(expenses["category"] == category) & (expenses["date"] == formatted_date)].cost.sum()
+
+        elif period == "weekly":
+            df_category = expenses[expenses["category"] == category]
+            category_total = 0
+            for index, row in df_category.iterrows():
+                row_date_number = datetime.strptime(row["date"], "%d/%m/%Y").isocalendar()[1]
+                if row_date_number == week_number:
+                    category_total += float(row["cost"])
+
+
+        elif period == "monthly":
+            df_category = expenses[expenses["category"] == category]
+            category_total = 0
+            for index, row in df_category.iterrows():
+                row_date_month_number = int(row["date"].split("/")[1])
+                if row_date_month_number == month_number:
+                    category_total += float(row["cost"])
+
+        percentage = (category_total / budget_limit) * 100
+        if not category_total <= budget_limit:
+            return category_total, budget_limit, f" ❌ You are over your {category} budget."
+
+        elif 0 <= percentage <= 50:
+            return category_total, budget_limit ,f"✅ You have used {percentage}% of your {category} budget."
+
+        elif 51 <= percentage <= 100:
+            return category_total, budget_limit ,f"⚠️ You have used {percentage}% of your {category} budget."
+
+        return None
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
