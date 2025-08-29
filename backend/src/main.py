@@ -520,10 +520,11 @@ def get_category_breakdown(period=None):
     with app.app_context():
         categories = ["Food & Groceries", "Shopping & Entertainemnt", "Housing & Rent", "Transport", "Health & Personal"]
         df_expenses = pd.read_sql_table("expenses", engine)
+        expenses = df_expenses[df_expenses["users_id"] == current_user.get_id()]
 
         if period == "daily":
             daily_break_down = {}
-            df_today_total = df_expenses[df_expenses["date"] == formatted_date]
+            df_today_total = expenses[expenses["date"] == formatted_date]
             if df_today_total.empty:
                 return None
 
@@ -546,7 +547,7 @@ def get_category_breakdown(period=None):
 
 
             for category in categories:
-                category_summary = df_expenses[df_expenses["category"] == category]
+                category_summary = expenses[expenses["category"] == category]
 
                 category_total = 0
                 for index, row in category_summary.iterrows():
@@ -562,14 +563,14 @@ def get_category_breakdown(period=None):
         elif period == "monthly":
             monthly_break_down = {}
             monthly_total = 0
-            for index, row in df_expenses.iterrows():
+            for index, row in expenses.iterrows():
                 date_month = int(row["date"].split("/")[1])
                 if date_month == month_number:
                     monthly_total += row["cost"]
 
 
             for category in categories:
-                category_summary = df_expenses[df_expenses["category"] == category]
+                category_summary = expenses[expenses["category"] == category]
                 category_total = 0
                 for index, row in category_summary.iterrows():
                     row_month_number = int(row["date"].split("/")[1])
@@ -587,7 +588,7 @@ def get_category_breakdown(period=None):
             overall_total = df_expenses["cost"].sum()
 
             for category in categories:
-                category_total = df_expenses[df_expenses["category"] == category].cost.sum()
+                category_total = expenses[expenses["category"] == category].cost.sum()
                 percentage = round((category_total / overall_total) * 100, 2)
                 overall_breakdown[category] = f"{percentage}%"
 
@@ -601,9 +602,12 @@ def top_spending_categories():
     categories = ["Food & Groceries", "Shopping & Entertainemnt", "Housing & Rent", "Transport", "Health & Personal"]
     with app.app_context():
         df_expenses = pd.read_sql_table("expenses", engine)
+        expenses = df_expenses[df_expenses["users_id"] == current_user.get_id()]
+        if not expenses:
+            return None
         summarised_categories = {}
         for c in categories:
-            summarised_categories[c] = float(df_expenses[(df_expenses["category"] == c) & (df_expenses["users_id"] == 1)].cost.sum())
+            summarised_categories[c] = float(expenses[(expenses["category"] == c) & (expenses["users_id"] == current_user.get_id())].cost.sum())
 
         top_spending_categories = {}
         while len(top_spending_categories) < 3:
@@ -640,9 +644,6 @@ def top_spending_categories():
 
 
 
-
-
-top_spending_categories()
 
 if __name__ == "__main__":
     app.run(debug=True)
