@@ -688,8 +688,8 @@ def recent_transactions():
     with app.app_context():
         df_expenses = pd.read_sql_table("expenses", engine)
         df_incomes = pd.read_sql_table("incomes", engine)
-        expenses = df_expenses[df_expenses["users_id"] == 1]
-        incomes = df_incomes[df_incomes["users_id"] == 1]
+        expenses = df_expenses[df_expenses["users_id"] == current_user.get_id()]
+        incomes = df_incomes[df_incomes["users_id"] == current_user.get_id()]
 
 
         df_transactions = pd.concat([expenses, incomes], join="outer")
