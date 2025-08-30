@@ -682,8 +682,52 @@ def budget_tracker(category=None):
 
 
 
+# get the recent transactions of user
+def recent_transactions():
+    """Returns a dictionary of the 3 most recent transactions"""
+    with app.app_context():
+        df_expenses = pd.read_sql_table("expenses", engine)
+        df_incomes = pd.read_sql_table("incomes", engine)
+        expenses = df_expenses[df_expenses["users_id"] == 1]
+        incomes = df_incomes[df_incomes["users_id"] == 1]
 
 
+        df_transactions = pd.concat([expenses, incomes], join="outer")
+        if df_transactions.empty:
+            return None
+        most_recent_transactions = df_transactions.sort_values(by=["date", "time"], ascending=[False, False]).head(3)
+        recent_transactions_dic = {}
+
+        for index, row in most_recent_transactions.iterrows():
+            check_if_expense = expenses[expenses["category"] == row["category"]]
+            check_if_income = incomes[incomes["category"] == row["category"]]
+            if check_if_income.empty:
+                recent_transactions_dic[row["category"]] = (float(row["cost"]), "Expense")
+
+            else:
+                recent_transactions_dic[row["category"]] = (float(row["cost"]), "Income")
+
+
+        return recent_transactions_dic
+
+
+
+
+
+
+
+
+
+
+
+
+# Speding trends over time
+
+print(recent_transactions())
+
+
+
+# plot graphs based o statistics
 
 
 
