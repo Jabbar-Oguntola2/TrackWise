@@ -1,5 +1,4 @@
-.venv
-.idea
-.env
-instance/
 .DS_Store
+.env
+.idea
+_to_delete/

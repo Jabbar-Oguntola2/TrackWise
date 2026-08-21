@@ -1,178 +1,93 @@
-# 📊 TrackWise API
+# TrackWise
 
-TrackWise helps you take control of your finances by automatically tracking income and expenses.  
-See where your money goes, analyze trends over time, and stay on top of your budgets — all in one simple, intuitive dashboard.
+TrackWise is a personal finance tracker. Log your expenses and income, set
+category-based budgets, and see it all laid out on a live dashboard.
 
----
+## Tech stack
 
-## 🚀 Features
+**Backend** — Node.js, Express, TypeScript, better-sqlite3 (raw SQL, no
+ORM), express-session for cookie-based auth, bcryptjs for password hashing.
 
-### 🔐 User Authentication
-- Secure sign-up and login
-- Session management with Flask-Login
-- Password hashing using Werkzeug
+**Frontend** — React, TypeScript, Vite, React Router, Recharts.
 
-### 💸 Transaction Management
-- Full CRUD operations for expenses
-- Add and manage income sources
-- Track categories and dates
+## Project structure
 
-### 🎯 Budgeting System
-- Set spending limits per category
-- Timeframes: Daily, Weekly, Monthly
-- Monitor financial discipline
+```
+TrackWise/
+  server/   Express API - auth, expenses, incomes, budgets, analytics
+  client/   React + Vite frontend - public landing page, dashboard, CRUD pages
+```
 
-### 📊 Data Analysis
-- Automatic balance calculations
-- Category breakdowns
-- Trend analysis using Pandas & NumPy
+## Getting started
 
-### 📈 Visual Insights
-- Line charts (spending trends)
-- Pie charts (category breakdown)
-- Bar charts (comparisons)
-- Generated as Base64-encoded images using Matplotlib
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Framework | Flask |
-| Database | SQLite |
-| ORM | SQLAlchemy |
-| Data Processing | Pandas, NumPy |
-| Visualization | Matplotlib |
-| Authentication | Flask-Login, Werkzeug |
-
----
-
-## 📋 API Endpoints
-
-### 🔐 Authentication
-
-| Method | Endpoint | Description |
-|--------|----------|------------|
-| POST | `/sign-in` | Register a new user |
-| POST | `/login` | Log in and start session |
-| POST | `/logout` | Log out current user |
-
----
-
-### 💸 Expenses
-
-| Method | Endpoint | Description |
-|--------|----------|------------|
-| GET | `/expenses` | Get all expenses |
-| POST | `/add-expense` | Add new expense |
-| PATCH | `/edit-expense/<id>` | Update expense cost |
-| DELETE | `/delete-expense/<id>` | Delete expense |
-
----
-
-### 💰 Income
-
-| Method | Endpoint | Description |
-|--------|----------|------------|
-| GET | `/incomes` | Get all income records |
-| POST | `/add-income` | Add new income |
-
----
-
-### 🎯 Budgets
-
-| Method | Endpoint | Description |
-|--------|----------|------------|
-| GET | `/budgets` | View active budgets |
-| POST | `/add-budget` | Create new budget |
-| DELETE | `/delete-budget/<id>` | Delete budget |
-
----
-
-## 📊 Database Schema
-
-### 🧑 User
-- id
-- username
-- password_hash
-- Relationship → Expenses
-- Relationship → Incomes
-- Relationship → Budgets
-
-### 💸 Expenses
-- id
-- cost
-- category
-- date
-- user_id
-
-### 💰 Incomes
-- id
-- amount
-- source
-- date
-- user_id
-
-### 🎯 Budgets
-- id
-- category
-- limit
-- timeframe (Day / Week / Month)
-- user_id
-
----
-
-## ⚙️ Setup Instructions
-
-### 1️⃣ Clone Repository
+### 1. Server
 
 ```bash
-git clone <repository-url>
-cd trackwise
+cd server
+npm install
+# create a .env file (see .env.example) with SESSION_SECRET and CLIENT_URL
+npm run dev
 ```
 
-### 2️⃣ Install Dependencies
+Runs at http://localhost:4000.
+
+### 2. Client
 
 ```bash
-pip install -r requirements.txt
+cd client
+npm install
+# create a .env file with:
+# VITE_API_URL=http://localhost:4000
+npm run dev
 ```
 
-### 3️⃣ Configure Environment Variables
+Runs at http://localhost:5173.
 
-Create a `.env` file in the root directory:
+## Features
 
-```env
-FLASK_KEY=your_secret_key_here
-DB_URI=sqlite:///track-wise.db
-```
+- Email/password auth with server-side sessions (httpOnly cookies)
+- Full CRUD for expenses and incomes
+- Category-based budgets with day/week/month limits and live status
+- Analytics dashboard - totals by period, category breakdown, top
+  categories, budget status, and recent activity, visualized with charts
+- Public landing page for logged-out visitors; logged-in users land
+  straight on their dashboard
 
-### 4️⃣ Run the Application
+## API overview
 
-```bash
-python main.py
-```
+### Auth (`/auth`)
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/auth/signup` | Create an account |
+| POST | `/auth/login` | Log in, start a session |
+| POST | `/auth/logout` | End the session |
+| GET | `/auth/me` | Get the current logged-in user |
 
----
+### Expenses / Incomes (`/expenses`, `/incomes`)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/expenses` | List your expenses |
+| POST | `/expenses` | Add an expense |
+| GET | `/expenses/:id` | Get one expense |
+| PATCH | `/expenses/:id` | Update an expense |
+| DELETE | `/expenses/:id` | Delete an expense |
 
-## 🧪 Example: Test `/add-expense`
+`/incomes` follows the same shape.
 
-```bash
-curl -X POST http://127.0.0.1:5000/add-expense \
--H "Content-Type: application/json" \
--d '{
-  "category": "Food",
-  "cost": 15.50,
-  "date": "2026-02-10"
-}'
-```
+### Budgets (`/budgets`)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/budgets` | List your budgets |
+| POST | `/budgets` | Create a budget |
+| GET | `/budgets/:id` | Get one budget |
+| PATCH | `/budgets/:id` | Update a budget |
+| DELETE | `/budgets/:id` | Delete a budget |
 
----
-
-## 📌 Future Improvements
-
-- JWT Authentication
-- Docker Deployment
-- PostgreSQL Support
-- Budget Alerts
-- Frontend Dashboard Integration
+### Analytics (`/analytics`)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/analytics/totals` | Income/expense/balance totals by period |
+| GET | `/analytics/categories` | Spending broken down by category |
+| GET | `/analytics/top-categories` | Highest-spending categories |
+| GET | `/analytics/budgets` | Status of every budget (ok/warning/over) |
+| GET | `/analytics/recent-transactions` | Most recent expenses + incomes |
