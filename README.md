@@ -3,6 +3,11 @@
 TrackWise is a personal finance tracker. Log your expenses and income, set
 category-based budgets, and see it all laid out on a live dashboard.
 
+<p align="center">
+  <img src="docs/screenshots/landing.png" alt="TrackWise landing page" width="800"><br>
+  <img src="docs/screenshots/dashboard.png" alt="TrackWise dashboard" width="800">
+</p>
+
 ## Tech stack
 
 **Backend** — Node.js, Express, TypeScript, better-sqlite3 (raw SQL, no
